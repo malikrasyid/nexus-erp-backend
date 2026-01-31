@@ -1,67 +1,41 @@
-import { supabaseAdmin } from '../config/supabase.js';
+import sql from '../config/db.js';
 import { Resource, ResourceCategory } from '../models/resource.js';
 
 export const ResourceService = {
-  /**
-   * Create a new resource scoped to the tenant
-   */
   async createResource(tenantId: string, data: Partial<Resource>) {
-    const { data: resource, error } = await supabaseAdmin
-      .from('resources')
-      .insert({
-        tenant_id: tenantId,
-        category: data.category,
-        name: data.name,
-        identifier: data.identifier,
-        unit_cost: data.unit_cost || 0,
-        metadata: data.metadata || {}
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+    const [resource] = await sql`
+      INSERT INTO resources (
+        tenant_id, name, category, identifier, unit_cost, metadata
+      ) VALUES (
+        ${tenantId}, ${data.name!}, ${data.category!}, ${data.identifier || null}, 
+        ${data.unit_cost || 0}, ${sql.json(data.metadata || {})}
+      )
+      RETURNING *
+    `;
     return resource;
   },
 
-  /**
-   * Get all resources for a company, filtered by category
-   */
   async getResources(tenantId: string, category?: ResourceCategory) {
-    let query = supabaseAdmin
-      .from('resources')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
-
-    if (category) {
-      query = query.eq('category', category);
-    }
-
-    const { data: resources, error } = await query;
-
-    if (error) throw error;
-    return resources;
+    return await sql`
+      SELECT * FROM resources 
+      WHERE tenant_id = ${tenantId}
+      ${category ? sql`AND category = ${category}` : sql``}
+      ORDER BY created_at DESC
+    `;
   },
 
-  async updateResource(tenantId: string, resourceId: string, updates: Partial<Resource>) {
-    const { data, error } = await supabaseAdmin
-      .from('resources')
-      .update(updates)
-      .match({ id: resourceId, tenant_id: tenantId }) // Critical security check
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+  async updateResource(tenantId: string, id: string, updates: Partial<Resource>) {
+    const [resource] = await sql`
+      UPDATE resources 
+      SET ${sql(updates, 'name', 'category', 'identifier', 'unit_cost', 'metadata')}
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+      RETURNING *
+    `;
+    return resource;
   },
 
-  async deleteResource(tenantId: string, resourceId: string) {
-    const { error } = await supabaseAdmin
-      .from('resources')
-      .delete()
-      .match({ id: resourceId, tenant_id: tenantId });
-
-    if (error) throw error;
+  async deleteResource(tenantId: string, id: string) {
+    await sql`DELETE FROM resources WHERE id = ${id} AND tenant_id = ${tenantId}`;
     return true;
   }
 };

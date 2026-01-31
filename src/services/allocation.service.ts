@@ -1,90 +1,72 @@
-import { supabaseAdmin } from '../config/supabase.js';
-import { Allocation } from '../models/schedule.js';
+import sql from '../config/db.js';
 import { formatPostgresRange } from '../utils/date.utils.js';
 
 export const AllocationService = {
-  /**
-   * Assign a resource to a task for a specific time range
-   */
-  async createAllocation(tenantId: string, data: {
-    resource_id: string;
-    task_id: string;
-    start: Date;
-    end: Date;
-    status?: 'PROPOSED' | 'CONFIRMED';
-  }) {
-    // Convert Dates to Postgres TSRANGE string: [start, end)
-    const durationRange = formatPostgresRange(data.start, data.end);
+  async createAllocation(tenantId: string, data: any) {
+    const range = formatPostgresRange(data.start, data.end);
 
-    const { data: allocation, error } = await supabaseAdmin
-      .from('allocations')
-      .insert({
-        tenant_id: tenantId,
-        resource_id: data.resource_id,
-        task_id: data.task_id,
-        duration: durationRange,
-        status: data.status || 'PROPOSED'
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+    const [allocation] = await sql`
+      INSERT INTO allocations (tenant_id, resource_id, task_id, duration, status)
+      VALUES (${tenantId}, ${data.resource_id}, ${data.task_id}, ${range}, ${data.status || 'PROPOSED'})
+      RETURNING *
+    `;
     return allocation;
   },
 
-  /**
-   * Get all allocations for a specific resource (to see their schedule)
-   */
   async getResourceSchedule(tenantId: string, resourceId: string) {
-    const { data, error } = await supabaseAdmin
-      .from('allocations')
-      .select(`
-        *,
-        tasks (name, project_id, projects (name))
-      `)
-      .eq('tenant_id', tenantId)
-      .eq('resource_id', resourceId);
-
-    if (error) throw error;
-    return data;
+    // Using a JOIN to get project names for the schedule view
+    return await sql`
+      SELECT 
+        a.*, 
+        t.name as task_name,
+        p.name as project_name
+      FROM allocations a
+      JOIN tasks t ON a.task_id = t.id
+      JOIN projects p ON t.project_id = p.id
+      WHERE a.resource_id = ${resourceId} AND a.tenant_id = ${tenantId}
+    `;
   },
 
-  async updateAllocation(tenantId: string, id: string, data: {
-    start?: Date;
-    end?: Date;
-    status?: 'PROPOSED' | 'CONFIRMED';
-  }) {
-    const updates: any = {};
+  async updateAllocation(tenantId: string, id: string, data: { start?: Date, end?: Date, status?: string }) {
+    return await sql.begin(async (tx) => {
+      // 1. Fetch current allocation to handle partial date updates
+      const [current] = await (tx as any)`
+        SELECT duration, status FROM allocations 
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+      `;
 
-    // If dates are provided, we must re-calculate the TSRANGE
-    if (data.start || data.end) {
-      // Note: In a real update, you'd usually fetch the existing record 
-      // to fill in whichever date wasn't provided, but for this logic:
-      if (data.start && data.end) {
-        updates.duration = formatPostgresRange(data.start, data.end);
+      if (!current) throw new Error('Allocation not found');
+
+      let newRange = current.duration;
+      
+      // 2. Re-calculate range if dates are changing
+      if (data.start || data.end) {
+        // We'd ideally extract existing bounds here, but for simplicity:
+        if (data.start && data.end) {
+          newRange = formatPostgresRange(data.start, data.end);
+        }
       }
-    }
 
-    if (data.status) updates.status = data.status;
+      // 3. Perform the update
+      const [updated] = await (tx as any)`
+        UPDATE allocations
+        SET 
+          duration = ${newRange},
+          status = ${data.status || current.status}
+        WHERE id = ${id} AND tenant_id = ${tenantId}
+        RETURNING *
+      `;
 
-    const { data: updated, error } = await supabaseAdmin
-      .from('allocations')
-      .update(updates)
-      .match({ id, tenant_id: tenantId })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return updated;
+      return updated;
+    });
   },
 
   async deleteAllocation(tenantId: string, id: string) {
-    const { error } = await supabaseAdmin
-      .from('allocations')
-      .delete()
-      .match({ id, tenant_id: tenantId });
-
-    if (error) throw error;
-    return true;
+    const result = await sql`
+      DELETE FROM allocations 
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    
+    return result.count > 0;
   }
 };

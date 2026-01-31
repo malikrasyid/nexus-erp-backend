@@ -24,8 +24,7 @@ export const getProjectWithTasks = async (req: Request, res: Response, next: Nex
 
 export const updateProject = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
-      const result = await ProjectService.updateProject(req.tenantId!, id, req.body);
+      const result = await ProjectService.updateProject(req.tenantId!, req.params.id, req.body);
       return sendSuccess(res, result, 'Project updated successfully');
     } catch (error) {
       next(error);
