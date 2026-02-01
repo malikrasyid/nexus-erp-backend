@@ -1,4 +1,4 @@
-import { TenantBase } from './base';
+import { TenantBase } from './base.js';
 
 export interface Allocation extends TenantBase {
   resource_id: string;

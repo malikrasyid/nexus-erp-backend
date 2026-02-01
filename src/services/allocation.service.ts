@@ -6,8 +6,8 @@ export const AllocationService = {
     const range = formatPostgresRange(data.start, data.end);
 
     const [allocation] = await sql`
-      INSERT INTO allocations (tenant_id, resource_id, task_id, duration, status)
-      VALUES (${tenantId}, ${data.resource_id}, ${data.task_id}, ${range}, ${data.status || 'PROPOSED'})
+      INSERT INTO allocations (tenant_id, resource_id, project_id, task_id, duration, status)
+      VALUES (${tenantId}, ${data.resource_id}, ${data.project_id}, ${data.task_id}, ${range}, ${data.status || 'PROPOSED'})
       RETURNING *
     `;
     return allocation;

@@ -4,10 +4,11 @@ import { sendSuccess } from '../utils/response.util.js';
 
 export const createAllocation = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { resource_id, task_id, start, end, status } = req.body;
+    const { resource_id, project_id, task_id, start, end, status } = req.body;
     
     const result = await AllocationService.createAllocation(req.tenantId!, {
       resource_id,
+      project_id,
       task_id,
       start: new Date(start),
       end: new Date(end),

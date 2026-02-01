@@ -47,6 +47,18 @@ export const ProjectService = {
     return rows[0];
   },
 
+  async getAllProjects(tenantId: string) {
+    return await sql<Project[]>`
+      SELECT 
+        id, 
+        name, 
+        status, 
+        metadata
+      FROM projects 
+      WHERE tenant_id = ${tenantId}
+    `;
+  },
+
   async updateProject(tenantId: string, projectId: string, updates: Partial<Project>) {
     // Only allow updating specific columns for safety
     const [project] = await sql`

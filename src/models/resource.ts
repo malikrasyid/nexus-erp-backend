@@ -1,4 +1,4 @@
-import { TenantBase } from './base';
+import { TenantBase } from './base.js';
 
 export type ResourceCategory = 'HUMAN' | 'EQUIPMENT' | 'MATERIAL' | 'SPACE';
 

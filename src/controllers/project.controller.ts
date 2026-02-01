@@ -12,6 +12,17 @@ export const createProjectBundle = async (req: Request, res: Response, next: Nex
   }
 };
 
+export const getAllProjects = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // req.tenantId is populated by our auth middleware
+    const projects = await ProjectService.getAllProjects(req.tenantId!);
+    
+    return sendSuccess(res, projects, 'Projects retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getProjectWithTasks = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
