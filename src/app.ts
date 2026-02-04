@@ -13,7 +13,7 @@ import projectRoutes from './routes/project.routes.js';
 import allocationRoutes from './routes/allocation.routes.js';
 import financeRoutes from './routes/finance.routes.js';
 import userRoutes from './routes/user.routes.js'
-
+import inventoryRoutes from './routes/inventory.routes.js';
 
 const app: Application = express();
 
@@ -37,6 +37,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/allocations', allocationRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // 4. Global Error Handler (MUST BE LAST)
 app.use(errorHandler);
