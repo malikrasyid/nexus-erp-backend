@@ -41,3 +41,42 @@ export const deleteResource = async (req: Request, res: Response, next: NextFunc
         next(error);
       }
 };
+
+export const addCapabilityToLibrary = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { name, description } = req.body;
+    // req.tenantId comes from our Hybrid Middleware
+    const result = await ResourceService.createCapability(req.tenantId!, name, description);
+    return sendSuccess(res, result, 'Capability added to company library');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const assignCapabilityToResource = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { resourceId, capabilityId, proficiency } = req.body;
+    
+    // We use req.tenantId to ensure Sarah can't tag resources in another company
+    const result = await ResourceService.assignCapability({
+      tenantId: req.tenantId!,
+      resourceId,
+      capabilityId,
+      proficiency: Number(proficiency) || 1
+    });
+
+    return sendSuccess(res, result, 'Resource capability updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const searchResourcesBySkill = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { capabilityId } = req.params;
+    const resources = await ResourceService.getResourcesBySkill(req.tenantId!, capabilityId);
+    return sendSuccess(res, resources, 'Matching resources found');
+  } catch (error) {
+    next(error);
+  }
+};

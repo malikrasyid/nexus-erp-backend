@@ -88,24 +88,32 @@ export const InventoryService = {
     reason: string
   }) {
     return await sql.begin(async (tx) => {
-        const [item] = await (tx as any)`SELECT is_active FROM inventory WHERE id = ${params.itemId}`;
-        if (!item?.isActive) throw new Error('Cannot adjust stock for a retired/inactive item.');
+        const [item] = await (tx as any)`
+        SELECT quantity, unit_price, is_active 
+        FROM inventory 
+        WHERE id = ${params.itemId} AND tenant_id = ${params.tenantId}
+        FOR UPDATE`;
+
+        if (!item) throw new Error('Item not found');
+        if (!item.isActive) throw new Error('Item is inactive');
+
+        if (item.quantity + params.change < 0) {
+          throw new Error(`Insufficient stock. Available: ${item.quantity}, Requested: ${Math.abs(params.change)}`);
+        }
 
         const [updatedItem] = await (tx as any)`
             UPDATE inventory 
             SET quantity = quantity + ${params.change}, updated_at = now()
-            WHERE id = ${params.itemId} AND tenant_id = ${params.tenantId}
+            WHERE id = ${params.itemId} 
             RETURNING *
         `;
 
-        if (!updatedItem) throw new Error('Item not found or unauthorized');
-
         await (tx as any)`
             INSERT INTO inventory_transactions (
-            tenant_id, inventory_id, project_id, user_id, type, quantity_changed, reason
+            tenant_id, inventory_id, project_id, user_id, type, quantity_changed, unit_price_at_time, reason
             ) VALUES (
             ${params.tenantId}, ${params.itemId}, ${params.projectId || null}, 
-            ${params.userId}, ${params.type}, ${params.change}, ${params.reason}
+            ${params.userId}, ${params.type}, ${params.change}, $(item.unitPrice), ${params.reason}
             )
         `;
 

@@ -37,5 +37,55 @@ export const ResourceService = {
   async deleteResource(tenantId: string, id: string) {
     await sql`DELETE FROM resources WHERE id = ${id} AND tenant_id = ${tenantId}`;
     return true;
+  },
+
+  async createCapability(tenantId: string, name: string, description: string) {
+    const [capability] = await sql`
+      INSERT INTO capabilities (tenant_id, name, description)
+      VALUES (${tenantId}, ${name}, ${description})
+      RETURNING *
+    `;
+    return capability;
+  },
+
+  async assignCapability(params: {
+    tenantId: string,
+    resourceId: string,   
+    capabilityId: string, 
+    proficiency: number  
+  }) {
+    const [assigned] = await sql`
+      INSERT INTO resource_capabilities (
+        tenant_id, 
+        resource_id, 
+        capability_id, 
+        proficiency
+      )
+      VALUES (
+        ${params.tenantId}, 
+        ${params.resourceId}, 
+        ${params.capabilityId}, 
+        ${params.proficiency}
+      )
+      ON CONFLICT (resource_id, capability_id) 
+      DO UPDATE SET proficiency = EXCLUDED.proficiency
+      RETURNING *
+    `;
+    return assigned;
+  },
+
+  async getResourcesBySkill(tenantId: string, capabilityId: string) {
+    return await sql`
+      SELECT 
+        r.*, 
+        rc.proficiency,
+        c.name as capability_name
+      FROM resource_capabilities rc
+      JOIN resources r ON rc.resource_id = r.id
+      JOIN capabilities c ON rc.capability_id = c.id
+      WHERE rc.tenant_id = ${tenantId} 
+      AND rc.capability_id = ${capabilityId}
+      ORDER BY rc.proficiency DESC
+    `;
   }
 };
