@@ -1,4 +1,5 @@
 import sql from '../config/db.js';
+import { LedgerService } from './ledger.service.js';
 
 export interface InventoryItem {
   id?: string;
@@ -31,7 +32,6 @@ export const InventoryService = {
 
   async addItem(item: InventoryItem & { userId: string }) {
     return await sql.begin(async (tx) => {
-      // 1. Insert the Item
       const [newItem] = await (tx as any)`
         INSERT INTO inventory (
           tenant_id, name, sku, category, quantity, unit_price, min_stock_level, is_active
@@ -42,7 +42,22 @@ export const InventoryService = {
         RETURNING *
       `;
 
-      // 2. If there's an initial quantity, log it as the opening balance
+      const inventoryAccountId = await LedgerService.getAccountIdByCode(item.tenantId, '1005');
+      const cashAccountId = await LedgerService.getAccountIdByCode(item.tenantId, '1001');
+
+      const totalValue = (item.quantity || 0) * (item.unitPrice || 0);
+
+      if (totalValue > 0) {
+        await LedgerService.createJournalEntry({
+          tenantId: item.tenantId,
+          description: `Initial stock: ${item.name}`,
+          entries: [
+            { accountId: inventoryAccountId, debit: totalValue, credit: 0 }, // Increase Inventory
+            { accountId: cashAccountId, debit: 0, credit: totalValue }       // Decrease Cash
+          ]
+        });
+      }
+
       if (item.quantity && item.quantity > 0) {
         await (tx as any)`  
           INSERT INTO inventory_transactions (

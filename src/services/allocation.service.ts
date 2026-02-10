@@ -2,15 +2,35 @@ import sql from '../config/db.js';
 import { formatPostgresRange } from '../utils/date.utils.js';
 
 export const AllocationService = {
-  async createAllocation(tenantId: string, data: any) {
-    const range = formatPostgresRange(data.start, data.end);
-
-    const [allocation] = await sql`
-      INSERT INTO allocations (tenant_id, resource_id, project_id, task_id, duration, status)
-      VALUES (${tenantId}, ${data.resource_id}, ${data.project_id}, ${data.task_id}, ${range}, ${data.status || 'PROPOSED'})
-      RETURNING *
+  async checkOverlap(tx: any, resourceId: string, range: string, excludeId?: string) {
+    const [overlap] = await tx`
+      SELECT id FROM allocations
+      WHERE resource_id = ${resourceId}
+      AND duration && ${range}::tsrange
+      ${excludeId ? tx`AND id != ${excludeId}` : tx``}
+      LIMIT 1
     `;
-    return allocation;
+    return !!overlap;
+  },
+
+  async createAllocation(tenantId: string, data: any) {
+    return await sql.begin(async (tx) => {
+      const range = formatPostgresRange(data.start, data.end);
+
+      // 1. Double-booking prevention check
+      const isOverlapping = await this.checkOverlap(tx, data.resource_id, range);
+      if (isOverlapping) {
+        throw new Error('Resource is already booked for the selected time range.');
+      }
+
+      // 2. Insert if no overlap
+      const [allocation] = await (tx as any)`
+        INSERT INTO allocations (tenant_id, resource_id, project_id, task_id, duration, status)
+        VALUES (${tenantId}, ${data.resource_id}, ${data.project_id}, ${data.task_id}, ${range}, ${data.status || 'PROPOSED'})
+        RETURNING *
+      `;
+      return allocation;
+    });
   },
 
   async getResourceSchedule(tenantId: string, resourceId: string) {
@@ -31,19 +51,20 @@ export const AllocationService = {
     return await sql.begin(async (tx) => {
       // 1. Fetch current allocation to handle partial date updates
       const [current] = await (tx as any)`
-        SELECT duration, status FROM allocations 
+        SELECT resource_id, duration, status FROM allocations 
         WHERE id = ${id} AND tenant_id = ${tenantId}
       `;
 
       if (!current) throw new Error('Allocation not found');
 
       let newRange = current.duration;
-      
-      // 2. Re-calculate range if dates are changing
-      if (data.start || data.end) {
-        // We'd ideally extract existing bounds here, but for simplicity:
-        if (data.start && data.end) {
-          newRange = formatPostgresRange(data.start, data.end);
+      if (data.start && data.end) {
+        newRange = formatPostgresRange(data.start, data.end);
+        
+        // Check for overlaps excluding the current allocation itself
+        const isOverlapping = await this.checkOverlap(tx, current.resourceId, newRange, id);
+        if (isOverlapping) {
+          throw new Error('Update failed: New time range overlaps with an existing booking.');
         }
       }
 
@@ -59,6 +80,30 @@ export const AllocationService = {
 
       return updated;
     });
+  },
+
+  /**
+   * Suggests alternative resources when a conflict occurs
+   */
+  async suggestAlternatives(tenantId: string, capabilityId: string, range: string) {
+    return await sql`
+      SELECT 
+        r.id, 
+        r.name, 
+        rc.proficiency
+      FROM resources r
+      JOIN resource_capabilities rc ON r.id = rc.resource_id
+      WHERE r.tenant_id = ${tenantId}
+      AND rc.capability_id = ${capabilityId}
+      -- This is the "Magic" check:
+      AND NOT EXISTS (
+        SELECT 1 FROM allocations a 
+        WHERE a.resource_id = r.id 
+        AND a.duration && ${range}::tsrange
+      )
+      ORDER BY rc.proficiency DESC
+      LIMIT 5
+    `;
   },
 
   async deleteAllocation(tenantId: string, id: string) {

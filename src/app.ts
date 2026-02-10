@@ -14,6 +14,9 @@ import allocationRoutes from './routes/allocation.routes.js';
 import financeRoutes from './routes/finance.routes.js';
 import userRoutes from './routes/user.routes.js'
 import inventoryRoutes from './routes/inventory.routes.js';
+import ledgerRoutes from './routes/ledger.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import procurementRoutes from './routes/procurement.routes.js';
 
 const app: Application = express();
 
@@ -38,6 +41,9 @@ app.use('/api/allocations', allocationRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/ledger', ledgerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/procurement', procurementRoutes);
 
 // 4. Global Error Handler (MUST BE LAST)
 app.use(errorHandler);
