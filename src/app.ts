@@ -17,6 +17,7 @@ import inventoryRoutes from './routes/inventory.routes.js';
 import ledgerRoutes from './routes/ledger.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import procurementRoutes from './routes/procurement.routes.js';
+import invoiceRoutes from "./routes/invoice.routes.js"
 
 const app: Application = express();
 
@@ -44,6 +45,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/ledger', ledgerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/procurement', procurementRoutes);
+app.use('/api/invoice', invoiceRoutes);
 
 // 4. Global Error Handler (MUST BE LAST)
 app.use(errorHandler);
