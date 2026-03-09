@@ -1,6 +1,26 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserService } from '../services/user.service.js';
 import { sendSuccess } from '../utils/response.util.js';
+import sql from '../config/db.js';
+
+export const getMe = async (req: any, res: any) => {
+  try {
+    // req.userId is securely provided by your authenticate middleware!
+    const [user] = await sql`
+      SELECT id, full_name, email, role, tenant_id
+      FROM profiles
+      WHERE id = ${req.userId}
+    `;
+    
+    if (!user) {
+      return res.status(404).json({ message: 'Profile not found' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
 
 export const listStaff = async (req: Request, res: Response, next: NextFunction) => {
   try {

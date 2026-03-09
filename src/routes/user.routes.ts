@@ -1,8 +1,10 @@
 import { Router } from 'express';
-import { authorize } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import * as UserController from '../controllers/user.controller.js';
 
 const router = Router();
+
+router.get('/me', authenticate, UserController.getMe);
 
 // Tenant Admin or Manager can view staff
 router.get('/staff', authorize('TENANT_ADMIN', 'MANAGER'), UserController.listStaff);

@@ -17,8 +17,8 @@ import inventoryRoutes from './routes/inventory.routes.js';
 import ledgerRoutes from './routes/ledger.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import procurementRoutes from './routes/procurement.routes.js';
-import invoiceRoutes from "./routes/invoice.routes.js"
-
+import invoiceRoutes from "./routes/invoice.routes.js";
+import metricRoutes from "./routes/metric.routes.js";
 const app: Application = express();
 
 // 1. Global Security
@@ -46,6 +46,7 @@ app.use('/api/ledger', ledgerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/procurement', procurementRoutes);
 app.use('/api/invoice', invoiceRoutes);
+app.use('/api/metrics', metricRoutes);
 
 // 4. Global Error Handler (MUST BE LAST)
 app.use(errorHandler);
